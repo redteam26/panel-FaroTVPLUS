@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Panel · FaroTVPLUS</title>
+<style>
+  :root{
+    --bg:#081320; --card:#0e2034; --card2:#143049; --line:#1f4060;
+    --txt:#e8f1f8; --muted:#86a2b8; --accent:#2fd6c2; --accent2:#1ba89a;
+    --green:#28a745; --red:#dc3545; --orange:#f0922b; --yellow:#e0a800;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Segoe UI,Roboto,system-ui,sans-serif;background:var(--bg);color:var(--txt);font-size:14px}
+  a{color:var(--accent)}
+  .hidden{display:none!important}
+  /* LOGIN */
+  #loginView{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+  .loginbox{width:100%;max-width:380px;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .loginbox .head{background:linear-gradient(135deg,#0e2034,#143049);color:#fff;padding:18px 22px;font-size:18px;font-weight:600;display:flex;align-items:center;gap:12px;border-bottom:2px solid var(--accent)}
+  .farologo{width:34px;height:34px;flex:0 0 auto}
+  .brandname b{color:#fff} .brandname span{color:var(--accent)}
+  .loginbox .body{padding:22px}
+  label{display:block;font-size:12px;color:var(--muted);margin:12px 0 4px}
+  input,select{width:100%;padding:10px 12px;background:var(--card2);border:1px solid var(--line);border-radius:8px;color:var(--txt);font-size:14px}
+  input:focus,select:focus{outline:none;border-color:var(--accent)}
+  .btn{display:inline-block;padding:9px 16px;border:none;border-radius:8px;background:var(--accent);color:#06202e;font-weight:700;cursor:pointer;font-size:13px}
+  .btn:hover{background:var(--accent2);color:#fff}
+  .btn.green{background:var(--green)} .btn.red{background:var(--red)} .btn.orange{background:var(--orange)} .btn.yellow{background:var(--yellow);color:#222} .btn.gray{background:#5a6270}
+  .btn.sm{padding:6px 10px;font-size:12px;margin:2px}
+  .msg{margin-top:12px;font-size:13px;min-height:18px}
+  .msg.err{color:#ff8b8b} .msg.ok{color:#8fe39f}
+  /* APP */
+  header{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;background:var(--card);border-bottom:1px solid var(--line)}
+  header .brand{font-size:18px;font-weight:700}
+  header .brand span{color:var(--accent)}
+  header .who{font-size:12px;color:var(--muted);margin-right:12px}
+  .wrap{max-width:1100px;margin:0 auto;padding:20px}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:24px}
+  .card{border-radius:12px;padding:18px;border:1px solid var(--line);background:var(--card)}
+  .card.kpi .n{font-size:30px;font-weight:700;margin-top:6px}
+  .card .t{font-size:14px;color:var(--muted)}
+  .card.action{background:var(--card2)}
+  .card.action.blue{background:#1c3b78} .card.action.green{background:#1f5b34} .card.action.orange{background:#7a4a18}
+  .card.action .t{color:#dfe6f2;font-size:16px;font-weight:600;margin-bottom:12px}
+  table{width:100%;border-collapse:collapse;margin-top:8px}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);font-size:13px}
+  th{color:var(--muted);font-weight:600;cursor:pointer;user-select:none}
+  tr:hover td{background:var(--card2)}
+  .pill{display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600}
+  .pill.on{background:#1f5b34;color:#8fe39f} .pill.off{background:#5b1f1f;color:#ff9b9b}
+  .toolbar{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:18px 0}
+  .toolbar input{max-width:280px}
+  .section-title{font-size:20px;font-weight:700;margin:8px 0 4px}
+  /* MODAL */
+  .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50}
+  .modal{width:100%;max-width:440px;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .modal .head{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;font-size:16px;font-weight:600}
+  .modal .head .x{cursor:pointer;color:var(--muted);font-size:20px}
+  .modal .body{padding:20px}
+  .modal .foot{padding:14px 20px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:10px}
+  .devrow{display:flex;justify-content:space-between;align-items:center;padding:10px;border:1px solid var(--line);border-radius:8px;margin-bottom:8px}
+  .devrow .info{font-size:13px}
+  .devrow .info small{color:var(--muted)}
+  .empty{color:var(--muted);padding:20px;text-align:center}
+  .loading{color:var(--muted);padding:30px;text-align:center}
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<div id="loginView">
+  <div class="loginbox">
+    <div class="head"><svg class="farologo" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><polygon points="24,22 40,22 44,55 20,55" fill="#ffffff"/><rect x="21" y="29" width="22" height="5" fill="#d0392a"/><rect x="20" y="40" width="24" height="5" fill="#d0392a"/><rect x="19" y="50" width="26" height="5" fill="#d0392a"/><rect x="26" y="12" width="12" height="10" fill="#f6b40e"/><polygon points="23,12 41,12 32,4" fill="#d0392a"/><circle cx="32" cy="3" r="2" fill="#f6b40e"/><rect x="16" y="55" width="32" height="4" rx="1" fill="#46566a"/></svg><span class="brandname"><b>FaroTV</b><span style="color:#f6b40e">PLUS</span></span></div>
+    <div style="text-align:center;padding:12px 22px 0;font-size:12px;letter-spacing:1.5px;color:#75aadb;font-weight:700">🇦🇷 ISLAS MALVINAS ARGENTINAS</div>
+    <div style="text-align:center;padding:3px 22px 0;font-size:12px;color:var(--muted)">Panel de administración</div>
+    <div class="body">
+      <label>Correo electrónico</label>
+      <input id="li_email" type="email" autocomplete="username" placeholder="admin@correo.com">
+      <label>Contraseña</label>
+      <input id="li_pass" type="password" autocomplete="current-password" placeholder="••••••••">
+      <div style="margin-top:18px"><button class="btn" style="width:100%" onclick="doLogin()">INGRESAR</button></div>
+      <div id="li_msg" class="msg"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="appView" class="hidden">
+  <header>
+    <div class="brand" style="display:flex;align-items:center;gap:10px"><svg viewBox="0 0 64 64" style="width:30px;height:30px" xmlns="http://www.w3.org/2000/svg"><polygon points="24,22 40,22 44,55 20,55" fill="#ffffff"/><rect x="21" y="29" width="22" height="5" fill="#d0392a"/><rect x="20" y="40" width="24" height="5" fill="#d0392a"/><rect x="19" y="50" width="26" height="5" fill="#d0392a"/><rect x="26" y="12" width="12" height="10" fill="#f6b40e"/><polygon points="23,12 41,12 32,4" fill="#d0392a"/><rect x="16" y="55" width="32" height="4" rx="1" fill="#46566a"/></svg><span class="brandname"><b>FaroTV</b><span style="color:#f6b40e">PLUS</span><b> · Panel</b></span> <span style="font-size:11px;color:#75aadb;font-weight:700;margin-left:6px">🇦🇷 Malvinas Argentinas</span></div>
+    <div style="display:flex;align-items:center">
+      <span class="who" id="whoami"></span>
+      <button class="btn gray sm" onclick="doLogout()">Cerrar sesión</button>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <!-- KPIs -->
+    <div class="cards">
+      <div class="card kpi"><div class="t">Clientes activos</div><div class="n" id="kpiActivos">—</div></div>
+      <div class="card kpi"><div class="t">Clientes totales</div><div class="n" id="kpiTotal">—</div></div>
+      <div class="card kpi"><div class="t">Vencidos</div><div class="n" id="kpiVencidos">—</div></div>
+    </div>
+
+    <!-- Acciones -->
+    <div class="cards">
+      <div class="card action blue">
+        <div class="t">Crear cliente</div>
+        <button class="btn" onclick="openCreate()">CREAR CUENTA</button>
+      </div>
+      <div class="card action green">
+        <div class="t">Mis clientes</div>
+        <button class="btn" onclick="loadClients()">ACTUALIZAR LISTA</button>
+      </div>
+    </div>
+
+    <!-- Tabla clientes -->
+    <div class="section-title">Mis clientes</div>
+    <div class="toolbar">
+      <input id="search" type="text" placeholder="Buscar por correo o nombre..." oninput="renderClients()">
+      <div><button class="btn gray sm" onclick="loadClients()">Recargar</button></div>
+    </div>
+    <div id="clientsBox">
+      <div class="loading">Iniciá sesión para ver tus clientes.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL CREAR/EDITAR ============ -->
+<div id="modalCreate" class="modal-bg hidden">
+  <div class="modal">
+    <div class="head"><span id="mc_title">Crear cliente</span><span class="x" onclick="closeModal('modalCreate')">&times;</span></div>
+    <div class="body">
+      <input type="hidden" id="mc_uid">
+      <label>Nombre</label>
+      <input id="mc_nombre" type="text" placeholder="Nombre del cliente">
+      <label>Correo electrónico</label>
+      <input id="mc_email" type="email" placeholder="cliente@correo.com">
+      <label id="mc_passLabel">Contraseña</label>
+      <input id="mc_pass" type="text" placeholder="contraseña del cliente">
+      <label>Fecha de vencimiento</label>
+      <input id="mc_caduca" type="date">
+      <label>Máximo de dispositivos</label>
+      <input id="mc_max" type="number" value="3" min="1" max="10">
+      <div id="mc_msg" class="msg"></div>
+    </div>
+    <div class="foot">
+      <button class="btn gray" onclick="closeModal('modalCreate')">Cancelar</button>
+      <button class="btn green" id="mc_save" onclick="saveClient()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL DISPOSITIVOS ============ -->
+<div id="modalDevices" class="modal-bg hidden">
+  <div class="modal">
+    <div class="head"><span>Dispositivos</span><span class="x" onclick="closeModal('modalDevices')">&times;</span></div>
+    <div class="body" id="md_body"><div class="loading">Cargando...</div></div>
+    <div class="foot"><button class="btn gray" onclick="closeModal('modalDevices')">Cerrar</button></div>
+  </div>
+</div>
+
+<!-- Firebase SDK (compat para simplicidad) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-functions-compat.js"></script>
+
+<script>
+// ====================================================================
+// CONFIG — PEGÁ ACÁ TU firebaseConfig (Consola Firebase > Config proyecto > Tus apps > Web)
+// ====================================================================
+const firebaseConfig = {
+  apiKey: "AIzaSyAMIAJ94WVkkFy1ku91nLKZMdxgeCxkZRM",
+  authDomain: "farotvplus.firebaseapp.com",
+  projectId: "farotvplus",
+  storageBucket: "farotvplus.firebasestorage.app",
+  messagingSenderId: "708942982047",
+  appId: "1:708942982047:android:c1152655baff92c1f06baa"
+};
+// Esta apiKey es pública por diseño en apps web de Firebase (no es secreta):
+// la seguridad está en las reglas de Firestore + Authentication.
+
+const ADMIN_UIDS = [
+  "dLa4YoyhPFNgFe6O6rRzE2Squku1",
+  "2Lpx2iErUeYNfgiC2ORT1rD5xz82"
+];
+// ====================================================================
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+const functions = firebase.functions();
+
+// app secundaria: para crear usuarios sin desloguear al admin
+let secondaryApp;
+function getSecondary(){
+  if(!secondaryApp){
+    secondaryApp = firebase.initializeApp(firebaseConfig, "secondary");
+  }
+  return secondaryApp;
+}
+
+let CURRENT_UID = null;
+let CLIENTS = []; // cache de clientes del admin actual
+
+// ---------- AUTH ----------
+auth.onAuthStateChanged(function(user){
+  if(user && ADMIN_UIDS.indexOf(user.uid) !== -1){
+    CURRENT_UID = user.uid;
+    document.getElementById('loginView').classList.add('hidden');
+    document.getElementById('appView').classList.remove('hidden');
+    document.getElementById('whoami').textContent = user.email;
+    loadClients();
+  } else if(user){
+    // logueado pero NO es admin
+    setMsg('li_msg','Esta cuenta no tiene permisos de administrador.','err');
+    auth.signOut();
+  } else {
+    CURRENT_UID = null;
+    document.getElementById('appView').classList.add('hidden');
+    document.getElementById('loginView').classList.remove('hidden');
+  }
+});
+
+function doLogin(){
+  const e = document.getElementById('li_email').value.trim();
+  const p = document.getElementById('li_pass').value;
+  setMsg('li_msg','Ingresando...','');
+  auth.signInWithEmailAndPassword(e,p).catch(function(err){
+    setMsg('li_msg', traducir(err.code) , 'err');
+  });
+}
+function doLogout(){ auth.signOut(); }
+
+// ---------- CARGAR CLIENTES (solo los del admin actual: owner == uid) ----------
+function loadClients(){
+  if(!CURRENT_UID) return;
+  document.getElementById('clientsBox').innerHTML = '<div class="loading">Cargando clientes...</div>';
+  db.collection('clientes').where('owner','==',CURRENT_UID).get().then(function(snap){
+    CLIENTS = [];
+    snap.forEach(function(doc){ CLIENTS.push(Object.assign({_id:doc.id}, doc.data())); });
+    renderKPIs();
+    renderClients();
+  }).catch(function(err){
+    document.getElementById('clientsBox').innerHTML = '<div class="empty">Error al cargar: '+err.message+'</div>';
+  });
+}
+
+function todayStr(){
+  const d = new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+
+function renderKPIs(){
+  const hoy = todayStr();
+  let act=0, ven=0;
+  CLIENTS.forEach(function(c){
+    const vigente = (c.activo!==false) && (!c.caduca || c.caduca >= hoy);
+    if(vigente) act++; else ven++;
+  });
+  document.getElementById('kpiActivos').textContent = act;
+  document.getElementById('kpiTotal').textContent = CLIENTS.length;
+  document.getElementById('kpiVencidos').textContent = ven;
+}
+
+function fmt(f){ if(!f||f.indexOf('-')<0) return f||''; const p=f.split('-'); return p[2]+'/'+p[1]+'/'+p[0]; }
+
+function renderClients(){
+  const q = (document.getElementById('search').value||'').toLowerCase();
+  const hoy = todayStr();
+  let list = CLIENTS.slice().sort(function(a,b){ return (a.email||'').localeCompare(b.email||''); });
+  if(q) list = list.filter(function(c){ return (c.email||'').toLowerCase().indexOf(q)>=0 || (c.nombre||'').toLowerCase().indexOf(q)>=0; });
+  if(list.length===0){ document.getElementById('clientsBox').innerHTML='<div class="empty">No hay clientes.</div>'; return; }
+  let h = '<table><thead><tr><th>Nombre</th><th>Correo</th><th>Creación</th><th>Vencimiento</th><th>Estado</th><th>Disp.</th><th>Opciones</th></tr></thead><tbody>';
+  list.forEach(function(c){
+    const vigente = (c.activo!==false) && (!c.caduca || c.caduca >= hoy);
+    const nd = (c.dispositivos&&c.dispositivos.length)||0;
+    const mx = c.maxDispositivos||3;
+    h += '<tr>'+
+      '<td>'+esc(c.nombre||'')+'</td>'+
+      '<td>'+esc(c.email||'')+'</td>'+
+      '<td>'+(c.inicio?fmt(c.inicio):'—')+'</td>'+
+      '<td>'+fmt(c.caduca)+'</td>'+
+      '<td><span class="pill '+(vigente?'on':'off')+'">'+(vigente?'Activo':(c.activo===false?'Inactivo':'Vencido'))+'</span></td>'+
+      '<td>'+nd+'/'+mx+'</td>'+
+      '<td>'+
+        '<button class="btn sm" onclick="openEdit(\''+c._id+'\')">Editar</button>'+
+        '<button class="btn green sm" onclick="renovar(\''+c._id+'\')">Renovar</button>'+
+        '<button class="btn yellow sm" onclick="toggleActivo(\''+c._id+'\')">'+(c.activo===false?'Activar':'Desactivar')+'</button>'+
+        '<button class="btn sm" style="background:#7a4ad1" onclick="cambiarClave(\''+c._id+'\')">Clave</button>'+
+        '<button class="btn sm" style="background:#0a7d8c" onclick="cambiarEmail(\''+c._id+'\')">Email</button>'+
+        '<button class="btn orange sm" onclick="openDevices(\''+c._id+'\')">Dispositivos</button>'+
+        '<button class="btn red sm" onclick="eliminar(\''+c._id+'\')">Eliminar</button>'+
+      '</td></tr>';
+  });
+  h += '</tbody></table>';
+  document.getElementById('clientsBox').innerHTML = h;
+}
+
+// ---------- CREAR ----------
+function openCreate(){
+  document.getElementById('mc_title').textContent='Crear cliente';
+  document.getElementById('mc_uid').value='';
+  document.getElementById('mc_nombre').value='';
+  document.getElementById('mc_email').value='';
+  document.getElementById('mc_pass').value='';
+  document.getElementById('mc_email').disabled=false;
+  document.getElementById('mc_passLabel').textContent='Contraseña';
+  document.getElementById('mc_pass').readOnly = false;
+  document.getElementById('mc_pass').placeholder = 'contraseña del cliente';
+  document.getElementById('mc_pass').classList.remove('hidden');
+  document.getElementById('mc_passLabel').classList.remove('hidden');
+  // vencimiento por defecto: +30 días
+  const d=new Date(); d.setDate(d.getDate()+30);
+  document.getElementById('mc_caduca').value = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  document.getElementById('mc_max').value=3;
+  setMsg('mc_msg','','');
+  openModal('modalCreate');
+}
+
+function openEdit(id){
+  const c = CLIENTS.find(function(x){return x._id===id;});
+  if(!c) return;
+  document.getElementById('mc_title').textContent='Editar cliente';
+  document.getElementById('mc_uid').value=c._id;
+  document.getElementById('mc_nombre').value=c.nombre||'';
+  document.getElementById('mc_email').value=c.email||'';
+  document.getElementById('mc_email').disabled=true; // el email no se cambia (es la cuenta)
+  // Mostrar la clave guardada y permitir escribirla/editarla (se guarda en Firestore, informativa).
+  document.getElementById('mc_passLabel').classList.remove('hidden');
+  document.getElementById('mc_pass').classList.remove('hidden');
+  document.getElementById('mc_passLabel').textContent = 'Contraseña (la que tiene la cuenta)';
+  document.getElementById('mc_pass').readOnly = false;
+  document.getElementById('mc_pass').value = c.clave || '';
+  document.getElementById('mc_pass').placeholder = 'Escribí la clave actual para guardarla';
+  document.getElementById('mc_caduca').value=c.caduca||'';
+  document.getElementById('mc_max').value=c.maxDispositivos||3;
+  setMsg('mc_msg','','');
+  openModal('modalCreate');
+}
+
+function saveClient(){
+  const uid = document.getElementById('mc_uid').value;
+  const nombre = document.getElementById('mc_nombre').value.trim();
+  const email = document.getElementById('mc_email').value.trim();
+  const pass = document.getElementById('mc_pass').value;
+  const caduca = document.getElementById('mc_caduca').value;
+  const max = parseInt(document.getElementById('mc_max').value)||3;
+
+  if(uid){
+    // EDITAR: actualiza el documento, incluyendo la clave si se escribió (informativa, no toca Auth)
+    setMsg('mc_msg','Guardando...','');
+    var datos = { nombre:nombre, caduca:caduca, maxDispositivos:max };
+    if(pass){ datos.clave = pass; }
+    db.collection('clientes').doc(uid).update(datos).then(function(){
+      closeModal('modalCreate'); loadClients();
+    }).catch(function(err){ setMsg('mc_msg',err.message,'err'); });
+    return;
+  }
+
+  // CREAR: usar Cloud Function (crea Auth + Firestore del lado servidor)
+  if(!email || !pass){ setMsg('mc_msg','Completá email y contraseña.','err'); return; }
+  setMsg('mc_msg','Creando cuenta...','');
+  const inicio = todayStr();
+  const fn = functions.httpsCallable('crearCliente');
+  fn({email:email, password:pass, nombre:nombre, caduca:caduca, maxDispositivos:max, inicio:inicio})
+    .then(function(res){
+      // Garantizar que el campo inicio quede guardado aunque la Function no lo setee
+      // y guardar la clave para poder consultarla luego desde el panel.
+      var newUid = (res && res.data && (res.data.uid || res.data.id)) || null;
+      if(newUid){
+        return db.collection('clientes').doc(newUid).update({inicio:inicio, clave:pass}).catch(function(){});
+      }
+    })
+    .then(function(){
+      closeModal('modalCreate'); loadClients();
+    }).catch(function(err){
+      setMsg('mc_msg', err.message || 'Error al crear', 'err');
+    });
+}
+
+// ---------- RENOVAR ----------
+function renovar(id){
+  const c = CLIENTS.find(function(x){return x._id===id;});
+  const def = c&&c.caduca ? c.caduca : todayStr();
+  const nueva = prompt('Nueva fecha de vencimiento (AAAA-MM-DD):', def);
+  if(!nueva) return;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(nueva)){ alert('Formato inválido. Usá AAAA-MM-DD'); return; }
+  db.collection('clientes').doc(id).update({caduca:nueva, activo:true}).then(loadClients)
+    .catch(function(err){ alert(err.message); });
+}
+
+// ---------- ACTIVAR/DESACTIVAR ----------
+function toggleActivo(id){
+  const c = CLIENTS.find(function(x){return x._id===id;});
+  const nuevo = !(c.activo===false) ? false : true; // si está activo -> desactivar
+  db.collection('clientes').doc(id).update({activo:nuevo}).then(loadClients)
+    .catch(function(err){ alert(err.message); });
+}
+
+// ---------- ELIMINAR (Cloud Function: borra Auth + Firestore) ----------
+function eliminar(id){
+  const c = CLIENTS.find(function(x){return x._id===id;});
+  if(!confirm('¿Eliminar al cliente '+(c?c.email:'')+'?\n\nEsto borra su cuenta de login y sus datos por completo.')) return;
+  const fn = functions.httpsCallable('eliminarCliente');
+  fn({uid:id}).then(function(){ loadClients(); })
+    .catch(function(err){ alert(err.message||'Error al eliminar'); });
+}
+
+// ---------- CAMBIAR CONTRASEÑA (Cloud Function) ----------
+function cambiarClave(id){
+  const c = CLIENTS.find(function(x){return x._id===id;});
+  const nueva = prompt('Nueva contraseña para '+(c?c.email:'')+' (mínimo 6 caracteres):');
+  if(!nueva) return;
+  if(nueva.length < 6){ alert('La contraseña debe tener al menos 6 caracteres.'); return; }
+  const fn = functions.httpsCallable('cambiarPassword');
+  fn({uid:id, password:nueva}).then(function(){
+    // Guardar también la nueva clave en Firestore para poder consultarla luego.
+    return db.collection('clientes').doc(id).update({clave:nueva}).catch(function(){});
+  }).then(function(){
+    alert('Contraseña cambiada correctamente.');
+    loadClients();
+  }).catch(function(err){ alert(err.message||'Error al cambiar la contraseña'); });
+}
+
+// ---------- CAMBIAR EMAIL (Cloud Function) ----------
+function cambiarEmail(id){
+  const c = CLIENTS.find(function(x){return x._id===id;});
+  const actual = c ? c.email : '';
+  const nuevo = prompt('Nuevo email para la cuenta (actual: '+actual+'):', actual);
+  if(!nuevo) return;
+  const email = nuevo.trim();
+  if(email === actual){ return; }
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ alert('El email no tiene un formato válido.'); return; }
+  if(!confirm('¿Cambiar el email de\n'+actual+'\na\n'+email+' ?\n\nEl cliente deberá iniciar sesión con el email nuevo.')) return;
+  const fn = functions.httpsCallable('cambiarEmail');
+  fn({uid:id, email:email}).then(function(){
+    alert('Email cambiado correctamente.');
+    loadClients();
+  }).catch(function(err){ alert(err.message||'Error al cambiar el email'); });
+}
+
+// ---------- DISPOSITIVOS ----------
+let DEV_CLIENT=null;
+function openDevices(id){
+  DEV_CLIENT=id;
+  const c = CLIENTS.find(function(x){return x._id===id;});
+  const devs = (c&&c.dispositivos)||[];
+  let h='';
+  if(devs.length===0){ h='<div class="empty">Sin dispositivos vinculados.</div>'; }
+  else{
+    devs.forEach(function(d,i){
+      h+='<div class="devrow"><div class="info"><b>'+esc(d.modelo||'Dispositivo')+'</b><br><small>Vinculado: '+fmt(d.vinculado)+'</small></div>'+
+         '<button class="btn red sm" onclick="desvincular('+i+')">Desvincular</button></div>';
+    });
+  }
+  document.getElementById('md_body').innerHTML=h;
+  openModal('modalDevices');
+}
+function desvincular(i){
+  const c = CLIENTS.find(function(x){return x._id===DEV_CLIENT;});
+  if(!c) return;
+  const devs = (c.dispositivos||[]).slice();
+  devs.splice(i,1);
+  db.collection('clientes').doc(DEV_CLIENT).update({dispositivos:devs}).then(function(){
+    loadClients(); closeModal('modalDevices');
+  }).catch(function(err){ alert(err.message); });
+}
+
+// ---------- helpers ----------
+function openModal(id){ document.getElementById(id).classList.remove('hidden'); }
+function closeModal(id){ document.getElementById(id).classList.add('hidden'); }
+function setMsg(id,t,cls){ const e=document.getElementById(id); e.textContent=t; e.className='msg '+(cls||''); }
+function esc(s){ return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+function traducir(code){
+  const m={
+    'auth/invalid-email':'Correo inválido.',
+    'auth/user-not-found':'Usuario no encontrado.',
+    'auth/wrong-password':'Contraseña incorrecta.',
+    'auth/invalid-credential':'Correo o contraseña incorrectos.',
+    'auth/email-already-in-use':'Ese correo ya tiene una cuenta.',
+    'auth/weak-password':'La contraseña debe tener al menos 6 caracteres.',
+    'auth/too-many-requests':'Demasiados intentos. Esperá un momento.'
+  };
+  return m[code]||code;
+}
+</script>
+</body>
+</html>
