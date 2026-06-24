@@ -338,6 +338,7 @@ function fechaMasDias(n){ var d=new Date(); d.setDate(d.getDate()+n); return d.g
 function diasRestantes(caduca){ if(!caduca) return null; var h=new Date(todayStr()+'T00:00:00'); var c=new Date(caduca+'T00:00:00'); return Math.round((c-h)/86400000); }
 function esUrgente(c){ var vig=(c.activo!==false)&&(!c.caduca||c.caduca>=todayStr()); var d=diasRestantes(c.caduca); return vig && d!==null && d>=0 && d<=1; }
 function tagUrgente(c){ if(!esUrgente(c)) return ''; var d=diasRestantes(c.caduca); return d===0 ? ' <span class="pill off">⚠️ hoy</span>' : ' <span class="pill off">⚠️ mañana</span>'; }
+function pagoTxt(c){ if(!c.ultimoPagoMeses) return '—'; return c.ultimoPagoMeses+' mes'+(c.ultimoPagoMeses>1?'es':'')+(c.ultimoPagoFecha?(' <small style="color:var(--muted)">'+fmt(c.ultimoPagoFecha)+'</small>'):''); }
 
 function renderKPIs(){
   const hoy = todayStr();
@@ -377,7 +378,7 @@ function renderClients(){
     });
   }
   if(list.length===0){ document.getElementById('clientsBox').innerHTML='<div class="empty">No hay clientes.</div>'; return; }
-  let h = '<table><thead><tr><th style="width:28px;text-align:center"><input type="checkbox" id="chkAll" onclick="toggleAll(this)" title="Seleccionar todo"></th><th>Nombre</th><th>Correo</th><th>Creación</th><th>Vencimiento</th><th>Estado</th><th>Disp.</th><th>Opciones</th></tr></thead><tbody>';
+  let h = '<table><thead><tr><th style="width:28px;text-align:center"><input type="checkbox" id="chkAll" onclick="toggleAll(this)" title="Seleccionar todo"></th><th>Nombre</th><th>Correo</th><th>Creación</th><th>Vencimiento</th><th>Pago</th><th>Estado</th><th>Disp.</th><th>Opciones</th></tr></thead><tbody>';
   list.forEach(function(c){
     const vigente = (c.activo!==false) && (!c.caduca || c.caduca >= hoy);
     const nd = (c.dispositivos&&c.dispositivos.length)||0;
@@ -389,6 +390,7 @@ function renderClients(){
       '<td>'+esc(c.email||'')+'</td>'+
       '<td>'+(c.inicio?fmt(c.inicio):'—')+'</td>'+
       '<td>'+fmt(c.caduca)+tagUrgente(c)+'</td>'+
+      '<td>'+pagoTxt(c)+'</td>'+
       '<td><span class="pill '+(vigente?'on':'off')+'">'+(vigente?'Activo':(c.activo===false?'Inactivo':'Vencido'))+'</span></td>'+
       '<td>'+nd+'/'+mx+'</td>'+
       '<td>'+
@@ -499,11 +501,22 @@ function saveClient(){
 // ---------- RENOVAR ----------
 function renovar(id){
   const c = CLIENTS.find(function(x){return x._id===id;});
-  const def = c&&c.caduca ? c.caduca : todayStr();
-  const nueva = prompt('Nueva fecha de vencimiento (AAAA-MM-DD):', def);
-  if(!nueva) return;
-  if(!/^\d{4}-\d{2}-\d{2}$/.test(nueva)){ alert('Formato inválido. Usá AAAA-MM-DD'); return; }
-  db.collection('clientes').doc(id).update({caduca:nueva, activo:true}).then(loadClients)
+  var inp = prompt('Renovar: ¿cuántos MESES pagó? (1, 2, 3...)\n\nO escribí una fecha fija AAAA-MM-DD:', '1');
+  if(inp===null) return;
+  inp=(inp||'').trim();
+  var datos={activo:true};
+  if(/^\d{4}-\d{2}-\d{2}$/.test(inp)){
+    datos.caduca=inp;
+  } else {
+    var meses=parseInt(inp,10);
+    if(isNaN(meses)||meses<=0){ alert('Poné un número de meses válido o una fecha AAAA-MM-DD.'); return; }
+    var hoy=todayStr();
+    var base=(c && c.caduca && c.caduca>hoy)?c.caduca:hoy;
+    datos.caduca=sumarMeses(base,meses);
+    datos.ultimoPagoMeses=meses;
+    datos.ultimoPagoFecha=hoy;
+  }
+  db.collection('clientes').doc(id).update(datos).then(loadClients)
     .catch(function(err){ alert(err.message); });
 }
 
@@ -724,10 +737,9 @@ function renovarSeleccionados(){
   var batch=db.batch();
   sel.forEach(function(uid){
     var c=CLIENTS.find(function(x){return x._id===uid;});
-    var nueva;
-    if(fechaFija){ nueva=fechaFija; }
-    else { var base=(c && c.caduca && c.caduca>hoy)?c.caduca:hoy; nueva=sumarMeses(base,meses); }
-    batch.update(db.collection('clientes').doc(uid), {caduca:nueva, activo:true});
+    var ref=db.collection('clientes').doc(uid);
+    if(fechaFija){ batch.update(ref, {caduca:fechaFija, activo:true}); }
+    else { var base=(c && c.caduca && c.caduca>hoy)?c.caduca:hoy; batch.update(ref, {caduca:sumarMeses(base,meses), activo:true, ultimoPagoMeses:meses, ultimoPagoFecha:hoy}); }
   });
   batch.commit().then(function(){ alert('Renovadas '+sel.length+' cuenta(s).'); loadClients(); })
     .catch(function(err){ alert('Error al renovar: '+err.message); });
