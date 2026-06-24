@@ -155,8 +155,14 @@
       <input id="mc_email" type="email" placeholder="cliente@correo.com">
       <label id="mc_passLabel">Contraseña</label>
       <input id="mc_pass" type="text" placeholder="contraseña del cliente">
-      <label>Fecha de vencimiento</label>
-      <input id="mc_caduca" type="date">
+      <div id="mc_mesesWrap">
+        <label>Meses que paga</label>
+        <input id="mc_meses" type="number" value="1" min="1" max="24">
+      </div>
+      <div id="mc_caducaWrap">
+        <label>Fecha de vencimiento</label>
+        <input id="mc_caduca" type="date">
+      </div>
       <label>Máximo de dispositivos</label>
       <input id="mc_max" type="number" value="3" min="1" max="10">
       <label>Teléfono (con código país, ej: 549XXXXXXXXXX)</label>
@@ -424,9 +430,10 @@ function openCreate(){
   document.getElementById('mc_pass').placeholder = 'contraseña del cliente';
   document.getElementById('mc_pass').classList.remove('hidden');
   document.getElementById('mc_passLabel').classList.remove('hidden');
-  // vencimiento por defecto: +30 días
-  const d=new Date(); d.setDate(d.getDate()+30);
-  document.getElementById('mc_caduca').value = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  // Al crear: se elige cuántos meses paga (vencimiento = hoy + meses)
+  document.getElementById('mc_meses').value=1;
+  document.getElementById('mc_mesesWrap').classList.remove('hidden');
+  document.getElementById('mc_caducaWrap').classList.add('hidden');
   document.getElementById('mc_max').value=3;
   document.getElementById('mc_tel').value='';
   setMsg('mc_msg','','');
@@ -446,6 +453,8 @@ function openEdit(id){
   document.getElementById('mc_passLabel').classList.add('hidden');
   document.getElementById('mc_pass').classList.add('hidden');
   document.getElementById('mc_pass').value = '';
+  document.getElementById('mc_mesesWrap').classList.add('hidden');
+  document.getElementById('mc_caducaWrap').classList.remove('hidden');
   document.getElementById('mc_caduca').value=c.caduca||'';
   document.getElementById('mc_max').value=c.maxDispositivos||3;
   document.getElementById('mc_tel').value=c.telefono||'';
@@ -480,15 +489,15 @@ function saveClient(){
   // CREAR: usar Cloud Function (crea Auth + Firestore del lado servidor)
   if(!email || !pass){ setMsg('mc_msg','Completá email y contraseña.','err'); return; }
   setMsg('mc_msg','Creando cuenta...','');
+  const meses = parseInt(document.getElementById('mc_meses').value)||1;
   const inicio = todayStr();
+  const caducaCreacion = sumarMeses(inicio, meses);
   const fn = functions.httpsCallable('crearCliente');
-  fn({email:email, password:pass, nombre:nombre, caduca:caduca, maxDispositivos:max, inicio:inicio})
+  fn({email:email, password:pass, nombre:nombre, caduca:caducaCreacion, maxDispositivos:max, inicio:inicio})
     .then(function(res){
-      // Garantizar que el campo inicio quede guardado aunque la Function no lo setee
-      // y guardar la clave para poder consultarla luego desde el panel.
       var newUid = (res && res.data && (res.data.uid || res.data.id)) || null;
       if(newUid){
-        return db.collection('clientes').doc(newUid).update({inicio:inicio, telefono:tel}).catch(function(){});
+        return db.collection('clientes').doc(newUid).update({inicio:inicio, telefono:tel, ultimoPagoMeses:meses, ultimoPagoFecha:inicio}).catch(function(){});
       }
     })
     .then(function(){
