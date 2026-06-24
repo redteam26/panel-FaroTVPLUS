@@ -92,6 +92,7 @@
     <div class="brand" style="display:flex;align-items:center;gap:10px"><svg viewBox="0 0 64 64" style="width:30px;height:30px" xmlns="http://www.w3.org/2000/svg"><polygon points="24,22 40,22 44,55 20,55" fill="#ffffff"/><rect x="21" y="29" width="22" height="5" fill="#d0392a"/><rect x="20" y="40" width="24" height="5" fill="#d0392a"/><rect x="19" y="50" width="26" height="5" fill="#d0392a"/><rect x="26" y="12" width="12" height="10" fill="#f6b40e"/><polygon points="23,12 41,12 32,4" fill="#d0392a"/><rect x="16" y="55" width="32" height="4" rx="1" fill="#46566a"/></svg><span class="brandname"><b>FaroTV</b><span style="color:#f6b40e">PLUS</span><b> · Panel</b></span> <span style="font-size:11px;color:#75aadb;font-weight:700;margin-left:6px">🇦🇷 Malvinas Argentinas</span></div>
     <div style="display:flex;align-items:center">
       <span class="who" id="whoami"></span>
+      <button id="btnAdmins" class="btn sm hidden" style="background:#6f42c1;margin-right:8px" onclick="openAdmins()">Administradores</button>
       <button class="btn gray sm" onclick="doLogout()">Cerrar sesión</button>
     </div>
   </header>
@@ -162,6 +163,30 @@
   </div>
 </div>
 
+<!-- ============ MODAL ADMINISTRADORES (solo super-admin) ============ -->
+<div id="modalAdmins" class="modal-bg hidden">
+  <div class="modal">
+    <div class="head"><span>Administradores</span><span class="x" onclick="closeModal('modalAdmins')">&times;</span></div>
+    <div class="body">
+      <div id="adminsList"><div class="loading">Cargando...</div></div>
+      <hr style="border-color:var(--line);margin:16px 0">
+      <div style="font-weight:600;margin-bottom:6px">Agregar administrador</div>
+      <label>Email</label>
+      <input id="na_email" type="email" placeholder="nuevo@correo.com">
+      <label>Contraseña (solo si la cuenta es nueva)</label>
+      <input id="na_pass" type="text" placeholder="mínimo 6 caracteres">
+      <label>Nombre (opcional)</label>
+      <input id="na_nombre" type="text" placeholder="Nombre">
+      <label style="display:flex;align-items:center;gap:8px;margin-top:10px"><input id="na_super" type="checkbox" style="width:auto"> Super-admin (puede gestionar admins)</label>
+      <div id="na_msg" class="msg"></div>
+    </div>
+    <div class="foot">
+      <button class="btn gray" onclick="closeModal('modalAdmins')">Cerrar</button>
+      <button class="btn green" onclick="addAdmin()">Agregar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Firebase SDK (compat para simplicidad) -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
@@ -206,22 +231,31 @@ function getSecondary(){
 }
 
 let CURRENT_UID = null;
+let IS_SUPER = false;
 let CLIENTS = []; // cache de clientes del admin actual
 
 // ---------- AUTH ----------
 auth.onAuthStateChanged(function(user){
-  if(user && esAdminUID(user.uid)){
-    CURRENT_UID = user.uid;
-    document.getElementById('loginView').classList.add('hidden');
-    document.getElementById('appView').classList.remove('hidden');
-    document.getElementById('whoami').textContent = user.email;
-    loadClients();
-  } else if(user){
-    // logueado pero NO es admin
-    setMsg('li_msg','Esta cuenta no tiene permisos de administrador.','err');
-    auth.signOut();
+  if(user){
+    db.collection('admins').doc(user.uid).get().then(function(doc){
+      if(doc.exists){
+        CURRENT_UID = user.uid;
+        IS_SUPER = (doc.data().super === true);
+        document.getElementById('loginView').classList.add('hidden');
+        document.getElementById('appView').classList.remove('hidden');
+        document.getElementById('whoami').textContent = user.email;
+        aplicarSuperUI();
+        loadClients();
+      } else {
+        setMsg('li_msg','Esta cuenta no tiene permisos de administrador.','err');
+        auth.signOut();
+      }
+    }).catch(function(){
+      setMsg('li_msg','No se pudo verificar permisos. Reintentá.','err');
+      auth.signOut();
+    });
   } else {
-    CURRENT_UID = null;
+    CURRENT_UID = null; IS_SUPER = false;
     document.getElementById('appView').classList.add('hidden');
     document.getElementById('loginView').classList.remove('hidden');
   }
@@ -486,6 +520,55 @@ function desvincular(i){
   db.collection('clientes').doc(DEV_CLIENT).update({dispositivos:devs}).then(function(){
     loadClients(); closeModal('modalDevices');
   }).catch(function(err){ alert(err.message); });
+}
+
+// ---------- ADMINISTRADORES (solo super-admin) ----------
+function aplicarSuperUI(){
+  var b=document.getElementById('btnAdmins');
+  if(b){ if(IS_SUPER){ b.classList.remove('hidden'); } else { b.classList.add('hidden'); } }
+}
+function openAdmins(){
+  if(!IS_SUPER){ alert('Solo un super-admin puede gestionar administradores.'); return; }
+  setMsg('na_msg','','');
+  document.getElementById('na_email').value='';
+  document.getElementById('na_pass').value='';
+  document.getElementById('na_nombre').value='';
+  document.getElementById('na_super').checked=false;
+  openModal('modalAdmins');
+  loadAdmins();
+}
+function loadAdmins(){
+  document.getElementById('adminsList').innerHTML='<div class="loading">Cargando...</div>';
+  db.collection('admins').get().then(function(snap){
+    var rows=[]; snap.forEach(function(d){ rows.push(Object.assign({_id:d.id}, d.data())); });
+    rows.sort(function(a,b){ return (a.email||'').localeCompare(b.email||''); });
+    if(rows.length===0){ document.getElementById('adminsList').innerHTML='<div class="empty">No hay administradores.</div>'; return; }
+    var h='';
+    rows.forEach(function(a){
+      var esYo=(a._id===CURRENT_UID);
+      h+='<div class="devrow"><div class="info"><b>'+esc(a.email||a._id)+'</b>'+(a.super?' <span class="pill adm">super</span>':'')+(esYo?' <span class="pill on">vos</span>':'')+'<br><small>'+esc(a.nombre||'')+'</small></div>'+
+         (esYo?'<span class="pill off" title="No te podés quitar a vos mismo">—</span>':'<button class="btn red sm" onclick="removeAdmin(\''+a._id+'\',\''+esc(a.email||'')+'\')">Quitar</button>')+
+         '</div>';
+    });
+    document.getElementById('adminsList').innerHTML=h;
+  }).catch(function(err){ document.getElementById('adminsList').innerHTML='<div class="empty">Error: '+err.message+'</div>'; });
+}
+function addAdmin(){
+  var email=document.getElementById('na_email').value.trim();
+  var pass=document.getElementById('na_pass').value;
+  var nombre=document.getElementById('na_nombre').value.trim();
+  var sup=document.getElementById('na_super').checked;
+  if(!email){ setMsg('na_msg','Poné un email.','err'); return; }
+  setMsg('na_msg','Agregando...','');
+  functions.httpsCallable('agregarAdmin')({email:email,password:pass,nombre:nombre,super:sup})
+    .then(function(){ setMsg('na_msg','Administrador agregado ✓','ok'); document.getElementById('na_email').value=''; document.getElementById('na_pass').value=''; document.getElementById('na_nombre').value=''; document.getElementById('na_super').checked=false; loadAdmins(); })
+    .catch(function(err){ setMsg('na_msg', err.message||'Error al agregar', 'err'); });
+}
+function removeAdmin(uid,email){
+  if(!confirm('¿Quitar como administrador a '+(email||uid)+'?\n\nDeja de poder entrar al panel. (La cuenta de login no se borra.)')) return;
+  functions.httpsCallable('quitarAdmin')({uid:uid})
+    .then(function(){ loadAdmins(); })
+    .catch(function(err){ alert(err.message||'Error al quitar'); });
 }
 
 // ---------- helpers ----------
