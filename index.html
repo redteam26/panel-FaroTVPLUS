@@ -336,12 +336,10 @@ function openEdit(id){
   document.getElementById('mc_email').value=c.email||'';
   document.getElementById('mc_email').disabled=true; // el email no se cambia (es la cuenta)
   // Mostrar la clave guardada y permitir escribirla/editarla (se guarda en Firestore, informativa).
-  document.getElementById('mc_passLabel').classList.remove('hidden');
-  document.getElementById('mc_pass').classList.remove('hidden');
-  document.getElementById('mc_passLabel').textContent = 'Cambiar contraseña (opcional)';
-  document.getElementById('mc_pass').readOnly = false;
+  // En editar NO se muestra la contraseña: para verla usá 👁 Ver, para cambiarla el botón Clave.
+  document.getElementById('mc_passLabel').classList.add('hidden');
+  document.getElementById('mc_pass').classList.add('hidden');
   document.getElementById('mc_pass').value = '';
-  document.getElementById('mc_pass').placeholder = 'Dejar vacío para no cambiar. Para verla usá 👁 Ver';
   document.getElementById('mc_caduca').value=c.caduca||'';
   document.getElementById('mc_max').value=c.maxDispositivos||3;
   setMsg('mc_msg','','');
