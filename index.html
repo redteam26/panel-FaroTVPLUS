@@ -121,7 +121,11 @@
     <div class="section-title">Mis clientes</div>
     <div class="toolbar">
       <input id="search" type="text" placeholder="Buscar por correo o nombre..." oninput="renderClients()">
-      <div><button class="btn gray sm" onclick="loadClients()">Recargar</button></div>
+      <div>
+        <button class="btn green sm" onclick="renovarSeleccionados()">Renovar selección</button>
+        <button class="btn red sm" onclick="eliminarSeleccionados()">Eliminar selección</button>
+        <button class="btn gray sm" onclick="loadClients()">Recargar</button>
+      </div>
     </div>
     <div id="clientsBox">
       <div class="loading">Iniciá sesión para ver tus clientes.</div>
@@ -310,13 +314,14 @@ function renderClients(){
   let list = CLIENTS.slice().sort(function(a,b){ return (a.email||'').localeCompare(b.email||''); });
   if(q) list = list.filter(function(c){ return (c.email||'').toLowerCase().indexOf(q)>=0 || (c.nombre||'').toLowerCase().indexOf(q)>=0; });
   if(list.length===0){ document.getElementById('clientsBox').innerHTML='<div class="empty">No hay clientes.</div>'; return; }
-  let h = '<table><thead><tr><th>Nombre</th><th>Correo</th><th>Creación</th><th>Vencimiento</th><th>Estado</th><th>Disp.</th><th>Opciones</th></tr></thead><tbody>';
+  let h = '<table><thead><tr><th style="width:28px;text-align:center"><input type="checkbox" id="chkAll" onclick="toggleAll(this)" title="Seleccionar todo"></th><th>Nombre</th><th>Correo</th><th>Creación</th><th>Vencimiento</th><th>Estado</th><th>Disp.</th><th>Opciones</th></tr></thead><tbody>';
   list.forEach(function(c){
     const vigente = (c.activo!==false) && (!c.caduca || c.caduca >= hoy);
     const nd = (c.dispositivos&&c.dispositivos.length)||0;
     const mx = c.maxDispositivos||3;
     const esAdmin = esAdminUID(c._id);
     h += '<tr>'+
+      '<td style="text-align:center"><input type="checkbox" class="rowchk" value="'+c._id+'"></td>'+
       '<td>'+esc(c.nombre||'')+(esAdmin?' <span class="pill adm" title="Cuenta de administrador protegida">🔒 Admin</span>':'')+'</td>'+
       '<td>'+esc(c.email||'')+'</td>'+
       '<td>'+(c.inicio?fmt(c.inicio):'—')+'</td>'+
@@ -570,6 +575,56 @@ function removeAdmin(uid,email){
   functions.httpsCallable('quitarAdmin')({uid:uid})
     .then(function(){ loadAdmins(); })
     .catch(function(err){ alert(err.message||'Error al quitar'); });
+}
+
+// ---------- ACCIONES EN LOTE ----------
+function toggleAll(cb){
+  var arr=document.querySelectorAll('.rowchk');
+  for(var i=0;i<arr.length;i++){ arr[i].checked=cb.checked; }
+}
+function getSeleccionados(){
+  var arr=document.querySelectorAll('.rowchk'); var ids=[];
+  for(var i=0;i<arr.length;i++){ if(arr[i].checked) ids.push(arr[i].value); }
+  return ids;
+}
+function sumarMeses(baseStr, meses){
+  var d = baseStr ? new Date(baseStr+'T00:00:00') : new Date();
+  d.setMonth(d.getMonth()+meses);
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function renovarSeleccionados(){
+  var sel=getSeleccionados();
+  if(sel.length===0){ alert('No seleccionaste ninguna cuenta.'); return; }
+  var inp=prompt('Renovar '+sel.length+' cuenta(s).\n\nEscribí cuántos MESES sumar (ej: 1), o una fecha fija AAAA-MM-DD para ponerles esa fecha a todas:','1');
+  if(inp===null) return;
+  inp=(inp||'').trim();
+  var fechaFija=null, meses=null;
+  if(/^\d{4}-\d{2}-\d{2}$/.test(inp)){ fechaFija=inp; }
+  else { meses=parseInt(inp,10); if(isNaN(meses)||meses<=0){ alert('Poné un número de meses válido o una fecha AAAA-MM-DD.'); return; } }
+  if(!confirm('¿Renovar '+sel.length+' cuenta(s) '+(fechaFija?('al '+fmt(fechaFija)):('sumando '+meses+' mes(es)'))+'?')) return;
+  var hoy=todayStr();
+  var batch=db.batch();
+  sel.forEach(function(uid){
+    var c=CLIENTS.find(function(x){return x._id===uid;});
+    var nueva;
+    if(fechaFija){ nueva=fechaFija; }
+    else { var base=(c && c.caduca && c.caduca>hoy)?c.caduca:hoy; nueva=sumarMeses(base,meses); }
+    batch.update(db.collection('clientes').doc(uid), {caduca:nueva, activo:true});
+  });
+  batch.commit().then(function(){ alert('Renovadas '+sel.length+' cuenta(s).'); loadClients(); })
+    .catch(function(err){ alert('Error al renovar: '+err.message); });
+}
+function eliminarSeleccionados(){
+  var sel=getSeleccionados();
+  if(sel.length===0){ alert('No seleccionaste ninguna cuenta.'); return; }
+  if(!confirm('¿ELIMINAR '+sel.length+' cuenta(s)?\n\nSe borran las cuentas de login y todos sus datos. No se puede deshacer.')) return;
+  var fn=functions.httpsCallable('eliminarCliente');
+  var tareas=sel.map(function(uid){ return fn({uid:uid}).then(function(){return true;}).catch(function(){return false;}); });
+  Promise.all(tareas).then(function(res){
+    var ok=res.filter(Boolean).length; var fail=res.length-ok;
+    alert('Eliminadas: '+ok+(fail?(' · Con error: '+fail):''));
+    loadClients();
+  });
 }
 
 // ---------- helpers ----------
