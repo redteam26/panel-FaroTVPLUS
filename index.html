@@ -123,6 +123,7 @@
       <input id="search" type="text" placeholder="Buscar por correo o nombre..." oninput="renderClients()">
       <select id="filtroEstado" onchange="renderClients()" style="max-width:200px">
         <option value="todos">Todos</option>
+        <option value="vencer1">Vencen en 1 día</option>
         <option value="vencer7">Vencen en 7 días</option>
         <option value="vencer30">Vencen en 30 días</option>
         <option value="vencidos">Vencidos</option>
@@ -334,6 +335,9 @@ function todayStr(){
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 }
 function fechaMasDias(n){ var d=new Date(); d.setDate(d.getDate()+n); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function diasRestantes(caduca){ if(!caduca) return null; var h=new Date(todayStr()+'T00:00:00'); var c=new Date(caduca+'T00:00:00'); return Math.round((c-h)/86400000); }
+function esUrgente(c){ var vig=(c.activo!==false)&&(!c.caduca||c.caduca>=todayStr()); var d=diasRestantes(c.caduca); return vig && d!==null && d>=0 && d<=1; }
+function tagUrgente(c){ if(!esUrgente(c)) return ''; var d=diasRestantes(c.caduca); return d===0 ? ' <span class="pill off">⚠️ hoy</span>' : ' <span class="pill off">⚠️ mañana</span>'; }
 
 function renderKPIs(){
   const hoy = todayStr();
@@ -352,7 +356,12 @@ function fmt(f){ if(!f||f.indexOf('-')<0) return f||''; const p=f.split('-'); re
 function renderClients(){
   const q = (document.getElementById('search').value||'').toLowerCase();
   const hoy = todayStr();
-  let list = CLIENTS.slice().sort(function(a,b){ return (a.email||'').localeCompare(b.email||''); });
+  let list = CLIENTS.slice().sort(function(a,b){
+    var ua=esUrgente(a)?0:1, ub=esUrgente(b)?0:1;
+    if(ua!==ub) return ua-ub;
+    if(ua===0) return (a.caduca||'').localeCompare(b.caduca||'');
+    return (a.email||'').localeCompare(b.email||'');
+  });
   if(q) list = list.filter(function(c){ return (c.email||'').toLowerCase().indexOf(q)>=0 || (c.nombre||'').toLowerCase().indexOf(q)>=0; });
   var filtro=(document.getElementById('filtroEstado')||{}).value||'todos';
   if(filtro!=='todos'){
@@ -361,6 +370,7 @@ function renderClients(){
       var vigente = (c.activo!==false) && (!c.caduca || c.caduca >= hoy);
       if(filtro==='vencidos') return vencido;
       if(filtro==='activos') return vigente;
+      if(filtro==='vencer1') return vigente && c.caduca && c.caduca<=fechaMasDias(1);
       if(filtro==='vencer7') return vigente && c.caduca && c.caduca<=fechaMasDias(7);
       if(filtro==='vencer30') return vigente && c.caduca && c.caduca<=fechaMasDias(30);
       return true;
@@ -378,7 +388,7 @@ function renderClients(){
       '<td>'+esc(c.nombre||'')+(esAdmin?' <span class="pill adm" title="Cuenta de administrador protegida">🔒 Admin</span>':'')+'</td>'+
       '<td>'+esc(c.email||'')+'</td>'+
       '<td>'+(c.inicio?fmt(c.inicio):'—')+'</td>'+
-      '<td>'+fmt(c.caduca)+'</td>'+
+      '<td>'+fmt(c.caduca)+tagUrgente(c)+'</td>'+
       '<td><span class="pill '+(vigente?'on':'off')+'">'+(vigente?'Activo':(c.activo===false?'Inactivo':'Vencido'))+'</span></td>'+
       '<td>'+nd+'/'+mx+'</td>'+
       '<td>'+
