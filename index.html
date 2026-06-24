@@ -49,6 +49,7 @@
   tr:hover td{background:var(--card2)}
   .pill{display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600}
   .pill.on{background:#1f5b34;color:#8fe39f} .pill.off{background:#5b1f1f;color:#ff9b9b}
+  .pill.adm{background:#3a2c5e;color:#cbb6ff}
   .toolbar{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:18px 0}
   .toolbar input{max-width:280px}
   .section-title{font-size:20px;font-weight:700;margin:8px 0 4px}
@@ -186,6 +187,8 @@ const ADMIN_UIDS = [
   "dLa4YoyhPFNgFe6O6rRzE2Squku1",
   "x4l8n5fPbLR9a7oK7AOYDlbuWij2"
 ];
+// Cuentas protegidas: NO se pueden eliminar ni desactivar desde el panel.
+function esAdminUID(uid){ return ADMIN_UIDS.indexOf(uid) !== -1; }
 // ====================================================================
 
 firebase.initializeApp(firebaseConfig);
@@ -207,7 +210,7 @@ let CLIENTS = []; // cache de clientes del admin actual
 
 // ---------- AUTH ----------
 auth.onAuthStateChanged(function(user){
-  if(user && ADMIN_UIDS.indexOf(user.uid) !== -1){
+  if(user && esAdminUID(user.uid)){
     CURRENT_UID = user.uid;
     document.getElementById('loginView').classList.add('hidden');
     document.getElementById('appView').classList.remove('hidden');
@@ -278,8 +281,9 @@ function renderClients(){
     const vigente = (c.activo!==false) && (!c.caduca || c.caduca >= hoy);
     const nd = (c.dispositivos&&c.dispositivos.length)||0;
     const mx = c.maxDispositivos||3;
+    const esAdmin = esAdminUID(c._id);
     h += '<tr>'+
-      '<td>'+esc(c.nombre||'')+'</td>'+
+      '<td>'+esc(c.nombre||'')+(esAdmin?' <span class="pill adm" title="Cuenta de administrador protegida">🔒 Admin</span>':'')+'</td>'+
       '<td>'+esc(c.email||'')+'</td>'+
       '<td>'+(c.inicio?fmt(c.inicio):'—')+'</td>'+
       '<td>'+fmt(c.caduca)+'</td>'+
@@ -288,11 +292,13 @@ function renderClients(){
       '<td>'+
         '<button class="btn sm" onclick="openEdit(\''+c._id+'\')">Editar</button>'+
         '<button class="btn green sm" onclick="renovar(\''+c._id+'\')">Renovar</button>'+
-        '<button class="btn yellow sm" onclick="toggleActivo(\''+c._id+'\')">'+(c.activo===false?'Activar':'Desactivar')+'</button>'+
         '<button class="btn sm" style="background:#7a4ad1" onclick="cambiarClave(\''+c._id+'\')">Clave</button>'+
         '<button class="btn sm" style="background:#0a7d8c" onclick="cambiarEmail(\''+c._id+'\')">Email</button>'+
         '<button class="btn orange sm" onclick="openDevices(\''+c._id+'\')">Dispositivos</button>'+
-        '<button class="btn red sm" onclick="eliminar(\''+c._id+'\')">Eliminar</button>'+
+        (esAdmin
+          ? '<span class="pill adm" style="margin:2px" title="No se puede desactivar ni eliminar un administrador">🔒 Protegido</span>'
+          : '<button class="btn yellow sm" onclick="toggleActivo(\''+c._id+'\')">'+(c.activo===false?'Activar':'Desactivar')+'</button>'+
+            '<button class="btn red sm" onclick="eliminar(\''+c._id+'\')">Eliminar</button>')+
       '</td></tr>';
   });
   h += '</tbody></table>';
@@ -394,6 +400,7 @@ function renovar(id){
 
 // ---------- ACTIVAR/DESACTIVAR ----------
 function toggleActivo(id){
+  if(esAdminUID(id)){ alert('🔒 No se puede desactivar una cuenta de administrador.'); return; }
   const c = CLIENTS.find(function(x){return x._id===id;});
   const nuevo = !(c.activo===false) ? false : true; // si está activo -> desactivar
   db.collection('clientes').doc(id).update({activo:nuevo}).then(loadClients)
@@ -402,6 +409,7 @@ function toggleActivo(id){
 
 // ---------- ELIMINAR (Cloud Function: borra Auth + Firestore) ----------
 function eliminar(id){
+  if(esAdminUID(id)){ alert('🔒 No se puede eliminar una cuenta de administrador.'); return; }
   const c = CLIENTS.find(function(x){return x._id===id;});
   if(!confirm('¿Eliminar al cliente '+(c?c.email:'')+'?\n\nEsto borra su cuenta de login y sus datos por completo.')) return;
   const fn = functions.httpsCallable('eliminarCliente');
