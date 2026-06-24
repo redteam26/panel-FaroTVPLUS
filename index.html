@@ -546,8 +546,9 @@ function loadAdmins(){
     var h='';
     rows.forEach(function(a){
       var esYo=(a._id===CURRENT_UID);
-      h+='<div class="devrow"><div class="info"><b>'+esc(a.email||a._id)+'</b>'+(a.super?' <span class="pill adm">super</span>':'')+(esYo?' <span class="pill on">vos</span>':'')+'<br><small>'+esc(a.nombre||'')+'</small></div>'+
-         (esYo?'<span class="pill off" title="No te podés quitar a vos mismo">—</span>':'<button class="btn red sm" onclick="removeAdmin(\''+a._id+'\',\''+esc(a.email||'')+'\')">Quitar</button>')+
+      var prot=(a.protegido===true);
+      h+='<div class="devrow"><div class="info"><b>'+esc(a.email||a._id)+'</b>'+(a.super?' <span class="pill adm">super</span>':'')+(prot?' <span class="pill adm" title="Cuenta protegida: no se puede quitar">🔒</span>':'')+(esYo?' <span class="pill on">vos</span>':'')+'<br><small>'+esc(a.nombre||'')+'</small></div>'+
+         ((esYo||prot)?'<span class="pill off" title="'+(prot?'Cuenta protegida':'No te podés quitar a vos mismo')+'">—</span>':'<button class="btn red sm" onclick="removeAdmin(\''+a._id+'\',\''+esc(a.email||'')+'\')">Quitar</button>')+
          '</div>';
     });
     document.getElementById('adminsList').innerHTML=h;
