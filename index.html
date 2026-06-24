@@ -293,6 +293,7 @@ function renderClients(){
         '<button class="btn sm" onclick="openEdit(\''+c._id+'\')">Editar</button>'+
         '<button class="btn green sm" onclick="renovar(\''+c._id+'\')">Renovar</button>'+
         '<button class="btn sm" style="background:#7a4ad1" onclick="cambiarClave(\''+c._id+'\')">Clave</button>'+
+        '<button class="btn sm" style="background:#2e7d46" onclick="verClaveCliente(\''+c._id+'\')">👁 Ver</button>'+
         '<button class="btn sm" style="background:#0a7d8c" onclick="cambiarEmail(\''+c._id+'\')">Email</button>'+
         '<button class="btn orange sm" onclick="openDevices(\''+c._id+'\')">Dispositivos</button>'+
         (esAdmin
@@ -337,10 +338,10 @@ function openEdit(id){
   // Mostrar la clave guardada y permitir escribirla/editarla (se guarda en Firestore, informativa).
   document.getElementById('mc_passLabel').classList.remove('hidden');
   document.getElementById('mc_pass').classList.remove('hidden');
-  document.getElementById('mc_passLabel').textContent = 'Contraseña (la que tiene la cuenta)';
+  document.getElementById('mc_passLabel').textContent = 'Cambiar contraseña (opcional)';
   document.getElementById('mc_pass').readOnly = false;
-  document.getElementById('mc_pass').value = c.clave || '';
-  document.getElementById('mc_pass').placeholder = 'Escribí la clave actual para guardarla';
+  document.getElementById('mc_pass').value = '';
+  document.getElementById('mc_pass').placeholder = 'Dejar vacío para no cambiar. Para verla usá 👁 Ver';
   document.getElementById('mc_caduca').value=c.caduca||'';
   document.getElementById('mc_max').value=c.maxDispositivos||3;
   setMsg('mc_msg','','');
@@ -359,8 +360,12 @@ function saveClient(){
     // EDITAR: actualiza el documento, incluyendo la clave si se escribió (informativa, no toca Auth)
     setMsg('mc_msg','Guardando...','');
     var datos = { nombre:nombre, caduca:caduca, maxDispositivos:max };
-    if(pass){ datos.clave = pass; }
     db.collection('clientes').doc(uid).update(datos).then(function(){
+      if(pass){
+        if(pass.length < 6){ throw new Error('La contraseña debe tener al menos 6 caracteres.'); }
+        return functions.httpsCallable('cambiarPassword')({uid:uid, password:pass});
+      }
+    }).then(function(){
       closeModal('modalCreate'); loadClients();
     }).catch(function(err){ setMsg('mc_msg',err.message,'err'); });
     return;
@@ -377,7 +382,7 @@ function saveClient(){
       // y guardar la clave para poder consultarla luego desde el panel.
       var newUid = (res && res.data && (res.data.uid || res.data.id)) || null;
       if(newUid){
-        return db.collection('clientes').doc(newUid).update({inicio:inicio, clave:pass}).catch(function(){});
+        return db.collection('clientes').doc(newUid).update({inicio:inicio}).catch(function(){});
       }
     })
     .then(function(){
@@ -425,12 +430,20 @@ function cambiarClave(id){
   if(nueva.length < 6){ alert('La contraseña debe tener al menos 6 caracteres.'); return; }
   const fn = functions.httpsCallable('cambiarPassword');
   fn({uid:id, password:nueva}).then(function(){
-    // Guardar también la nueva clave en Firestore para poder consultarla luego.
-    return db.collection('clientes').doc(id).update({clave:nueva}).catch(function(){});
-  }).then(function(){
     alert('Contraseña cambiada correctamente.');
     loadClients();
   }).catch(function(err){ alert(err.message||'Error al cambiar la contraseña'); });
+}
+
+// ---------- VER CLAVE (Cloud Function: descifra del lado servidor) ----------
+function verClaveCliente(id){
+  const c = CLIENTS.find(function(x){return x._id===id;});
+  const fn = functions.httpsCallable('verClave');
+  fn({uid:id}).then(function(res){
+    var clave = (res && res.data && res.data.clave) || '';
+    if(!clave){ alert('Este cliente no tiene una clave guardada.'); return; }
+    window.prompt('Clave de '+(c?c.email:'')+' (copiala):', clave);
+  }).catch(function(err){ alert(err.message||'Error al obtener la clave'); });
 }
 
 // ---------- CAMBIAR EMAIL (Cloud Function) ----------
