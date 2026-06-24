@@ -121,6 +121,13 @@
     <div class="section-title">Mis clientes</div>
     <div class="toolbar">
       <input id="search" type="text" placeholder="Buscar por correo o nombre..." oninput="renderClients()">
+      <select id="filtroEstado" onchange="renderClients()" style="max-width:200px">
+        <option value="todos">Todos</option>
+        <option value="vencer7">Vencen en 7 días</option>
+        <option value="vencer30">Vencen en 30 días</option>
+        <option value="vencidos">Vencidos</option>
+        <option value="activos">Activos</option>
+      </select>
       <div>
         <button class="btn sm" style="background:#25D366;color:#053d23" onclick="enviarWhatsappSeleccionados()">WhatsApp selección</button>
         <button class="btn green sm" onclick="renovarSeleccionados()">Renovar selección</button>
@@ -326,6 +333,7 @@ function todayStr(){
   const d = new Date();
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 }
+function fechaMasDias(n){ var d=new Date(); d.setDate(d.getDate()+n); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 
 function renderKPIs(){
   const hoy = todayStr();
@@ -346,6 +354,18 @@ function renderClients(){
   const hoy = todayStr();
   let list = CLIENTS.slice().sort(function(a,b){ return (a.email||'').localeCompare(b.email||''); });
   if(q) list = list.filter(function(c){ return (c.email||'').toLowerCase().indexOf(q)>=0 || (c.nombre||'').toLowerCase().indexOf(q)>=0; });
+  var filtro=(document.getElementById('filtroEstado')||{}).value||'todos';
+  if(filtro!=='todos'){
+    list = list.filter(function(c){
+      var vencido = c.caduca && c.caduca < hoy;
+      var vigente = (c.activo!==false) && (!c.caduca || c.caduca >= hoy);
+      if(filtro==='vencidos') return vencido;
+      if(filtro==='activos') return vigente;
+      if(filtro==='vencer7') return vigente && c.caduca && c.caduca<=fechaMasDias(7);
+      if(filtro==='vencer30') return vigente && c.caduca && c.caduca<=fechaMasDias(30);
+      return true;
+    });
+  }
   if(list.length===0){ document.getElementById('clientsBox').innerHTML='<div class="empty">No hay clientes.</div>'; return; }
   let h = '<table><thead><tr><th style="width:28px;text-align:center"><input type="checkbox" id="chkAll" onclick="toggleAll(this)" title="Seleccionar todo"></th><th>Nombre</th><th>Correo</th><th>Creación</th><th>Vencimiento</th><th>Estado</th><th>Disp.</th><th>Opciones</th></tr></thead><tbody>';
   list.forEach(function(c){
