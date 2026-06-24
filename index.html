@@ -122,8 +122,10 @@
     <div class="toolbar">
       <input id="search" type="text" placeholder="Buscar por correo o nombre..." oninput="renderClients()">
       <div>
+        <button class="btn sm" style="background:#25D366;color:#053d23" onclick="enviarWhatsappSeleccionados()">WhatsApp selección</button>
         <button class="btn green sm" onclick="renovarSeleccionados()">Renovar selección</button>
         <button class="btn red sm" onclick="eliminarSeleccionados()">Eliminar selección</button>
+        <button class="btn sm" onclick="editarPlantillaWA()">✏️ Mensaje</button>
         <button class="btn gray sm" onclick="loadClients()">Recargar</button>
       </div>
     </div>
@@ -149,6 +151,8 @@
       <input id="mc_caduca" type="date">
       <label>Máximo de dispositivos</label>
       <input id="mc_max" type="number" value="3" min="1" max="10">
+      <label>Teléfono (con código país, ej: 549XXXXXXXXXX)</label>
+      <input id="mc_tel" type="text" placeholder="549XXXXXXXXXX">
       <div id="mc_msg" class="msg"></div>
     </div>
     <div class="foot">
@@ -164,6 +168,31 @@
     <div class="head"><span>Dispositivos</span><span class="x" onclick="closeModal('modalDevices')">&times;</span></div>
     <div class="body" id="md_body"><div class="loading">Cargando...</div></div>
     <div class="foot"><button class="btn gray" onclick="closeModal('modalDevices')">Cerrar</button></div>
+  </div>
+</div>
+
+<!-- ============ MODAL EDITAR MENSAJE WHATSAPP ============ -->
+<div id="modalWaPlantilla" class="modal-bg hidden">
+  <div class="modal">
+    <div class="head"><span>Mensaje de WhatsApp</span><span class="x" onclick="closeModal('modalWaPlantilla')">&times;</span></div>
+    <div class="body">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Podés usar: <b>{panel}</b> (nombre del panel), <b>{correo}</b>, <b>{nombre}</b>, <b>{vencimiento}</b>. Se reemplazan por los datos de cada cliente.</div>
+      <textarea id="wp_texto" rows="9" style="width:100%;padding:10px;background:var(--card2);border:1px solid var(--line);border-radius:8px;color:var(--txt);font-size:14px;font-family:inherit"></textarea>
+      <div id="wp_msg" class="msg"></div>
+    </div>
+    <div class="foot">
+      <button class="btn gray" onclick="closeModal('modalWaPlantilla')">Cancelar</button>
+      <button class="btn green" onclick="guardarPlantillaWA()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL ENVIAR WHATSAPP EN LOTE ============ -->
+<div id="modalWaEnviar" class="modal-bg hidden">
+  <div class="modal">
+    <div class="head"><span>Enviar WhatsApp</span><span class="x" onclick="closeModal('modalWaEnviar')">&times;</span></div>
+    <div class="body" id="we_body"><div class="loading">...</div></div>
+    <div class="foot"><button class="btn gray" onclick="closeModal('modalWaEnviar')">Cerrar</button></div>
   </div>
 </div>
 
@@ -236,6 +265,9 @@ function getSecondary(){
 
 let CURRENT_UID = null;
 let IS_SUPER = false;
+let PLANTILLA_WA = '';
+const PANEL_NOMBRE = 'FaroTVPLUS';
+const PLANTILLA_WA_DEFAULT = 'Hola, hoy vence tu abono de {panel}.\n\nCuenta: {correo}\n\n¿Vas a renovar?\n• 1 mes x 14000\n• 3 meses x 39000\n\nMandame a alias nmattina (tarjeta Naranja).';
 let CLIENTS = []; // cache de clientes del admin actual
 
 // ---------- AUTH ----------
@@ -250,6 +282,7 @@ auth.onAuthStateChanged(function(user){
         document.getElementById('whoami').textContent = user.email;
         aplicarSuperUI();
         loadClients();
+        cargarPlantillaWA();
       } else {
         setMsg('li_msg','Esta cuenta no tiene permisos de administrador.','err');
         auth.signOut();
@@ -335,6 +368,7 @@ function renderClients(){
         '<button class="btn sm" style="background:#2e7d46" onclick="verClaveCliente(\''+c._id+'\')">👁 Ver</button>'+
         '<button class="btn sm" style="background:#0a7d8c" onclick="cambiarEmail(\''+c._id+'\')">Email</button>'+
         '<button class="btn orange sm" onclick="openDevices(\''+c._id+'\')">Dispositivos</button>'+
+        '<button class="btn sm" style="background:#25D366;color:#053d23" onclick="waCliente(\''+c._id+'\')">WhatsApp</button>'+
         (esAdmin
           ? '<span class="pill adm" style="margin:2px" title="No se puede desactivar ni eliminar un administrador">🔒 Protegido</span>'
           : '<button class="btn yellow sm" onclick="toggleActivo(\''+c._id+'\')">'+(c.activo===false?'Activar':'Desactivar')+'</button>'+
@@ -362,6 +396,7 @@ function openCreate(){
   const d=new Date(); d.setDate(d.getDate()+30);
   document.getElementById('mc_caduca').value = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
   document.getElementById('mc_max').value=3;
+  document.getElementById('mc_tel').value='';
   setMsg('mc_msg','','');
   openModal('modalCreate');
 }
@@ -381,6 +416,7 @@ function openEdit(id){
   document.getElementById('mc_pass').value = '';
   document.getElementById('mc_caduca').value=c.caduca||'';
   document.getElementById('mc_max').value=c.maxDispositivos||3;
+  document.getElementById('mc_tel').value=c.telefono||'';
   setMsg('mc_msg','','');
   openModal('modalCreate');
 }
@@ -392,11 +428,12 @@ function saveClient(){
   const pass = document.getElementById('mc_pass').value;
   const caduca = document.getElementById('mc_caduca').value;
   const max = parseInt(document.getElementById('mc_max').value)||3;
+  const tel = document.getElementById('mc_tel').value.trim();
 
   if(uid){
     // EDITAR: actualiza el documento, incluyendo la clave si se escribió (informativa, no toca Auth)
     setMsg('mc_msg','Guardando...','');
-    var datos = { nombre:nombre, caduca:caduca, maxDispositivos:max };
+    var datos = { nombre:nombre, caduca:caduca, maxDispositivos:max, telefono:tel };
     db.collection('clientes').doc(uid).update(datos).then(function(){
       if(pass){
         if(pass.length < 6){ throw new Error('La contraseña debe tener al menos 6 caracteres.'); }
@@ -419,7 +456,7 @@ function saveClient(){
       // y guardar la clave para poder consultarla luego desde el panel.
       var newUid = (res && res.data && (res.data.uid || res.data.id)) || null;
       if(newUid){
-        return db.collection('clientes').doc(newUid).update({inicio:inicio}).catch(function(){});
+        return db.collection('clientes').doc(newUid).update({inicio:inicio, telefono:tel}).catch(function(){});
       }
     })
     .then(function(){
@@ -575,6 +612,57 @@ function removeAdmin(uid,email){
   functions.httpsCallable('quitarAdmin')({uid:uid})
     .then(function(){ loadAdmins(); })
     .catch(function(err){ alert(err.message||'Error al quitar'); });
+}
+
+// ---------- WHATSAPP ----------
+function cargarPlantillaWA(){
+  if(!CURRENT_UID){ return; }
+  db.collection('plantillas').doc(CURRENT_UID).get().then(function(d){
+    PLANTILLA_WA = (d.exists && d.data().texto) ? d.data().texto : PLANTILLA_WA_DEFAULT;
+  }).catch(function(){ PLANTILLA_WA = PLANTILLA_WA_DEFAULT; });
+}
+function editarPlantillaWA(){
+  document.getElementById('wp_texto').value = PLANTILLA_WA || PLANTILLA_WA_DEFAULT;
+  setMsg('wp_msg','','');
+  openModal('modalWaPlantilla');
+}
+function guardarPlantillaWA(){
+  var t = document.getElementById('wp_texto').value;
+  if(!t.trim()){ setMsg('wp_msg','El mensaje no puede estar vacío.','err'); return; }
+  setMsg('wp_msg','Guardando...','');
+  db.collection('plantillas').doc(CURRENT_UID).set({texto:t}).then(function(){
+    PLANTILLA_WA = t; setMsg('wp_msg','Guardado ✓','ok');
+    setTimeout(function(){ closeModal('modalWaPlantilla'); }, 700);
+  }).catch(function(err){ setMsg('wp_msg', err.message, 'err'); });
+}
+function renderMensajeWA(c){
+  var t = PLANTILLA_WA || PLANTILLA_WA_DEFAULT;
+  return t.replace(/{panel}/g, PANEL_NOMBRE)
+          .replace(/{correo}/g, c.email||'')
+          .replace(/{nombre}/g, c.nombre||'')
+          .replace(/{vencimiento}/g, c.caduca?fmt(c.caduca):'');
+}
+function telDigits(t){ return String(t||'').replace(/[^0-9]/g,''); }
+function waLink(tel, msg){ return 'https://wa.me/'+telDigits(tel)+'?text='+encodeURIComponent(msg); }
+function waCliente(id){
+  var c = CLIENTS.find(function(x){return x._id===id;});
+  if(!c){ return; }
+  if(!telDigits(c.telefono)){ alert('Este cliente no tiene teléfono cargado. Editalo y agregá el número con código país (ej: 549...).'); return; }
+  window.open(waLink(c.telefono, renderMensajeWA(c)), '_blank');
+}
+function enviarWhatsappSeleccionados(){
+  var sel = getSeleccionados();
+  if(sel.length===0){ alert('No seleccionaste ninguna cuenta.'); return; }
+  var h=''; var sinTel=0;
+  sel.forEach(function(uid){
+    var c = CLIENTS.find(function(x){return x._id===uid;});
+    if(!c) return;
+    if(!telDigits(c.telefono)){ sinTel++; h+='<div class="devrow"><div class="info"><b>'+esc(c.email||'')+'</b><br><small>Sin teléfono</small></div><span class="pill off">—</span></div>'; return; }
+    h+='<div class="devrow"><div class="info"><b>'+esc(c.email||'')+'</b><br><small>'+esc(c.telefono)+'</small></div>'+
+       '<a class="btn sm" style="background:#25D366;color:#053d23" target="_blank" href="'+waLink(c.telefono, renderMensajeWA(c))+'">Abrir chat</a></div>';
+  });
+  document.getElementById('we_body').innerHTML = '<div style="margin-bottom:10px;color:var(--muted);font-size:12px">Tocá "Abrir chat" en cada uno: se abre WhatsApp con el mensaje listo, solo apretás enviar.'+(sinTel?(' ('+sinTel+' sin teléfono)'):'')+'</div>'+h;
+  openModal('modalWaEnviar');
 }
 
 // ---------- ACCIONES EN LOTE ----------
