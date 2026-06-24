@@ -511,7 +511,8 @@ function renovar(id){
     var meses=parseInt(inp,10);
     if(isNaN(meses)||meses<=0){ alert('Poné un número de meses válido o una fecha AAAA-MM-DD.'); return; }
     var hoy=todayStr();
-    datos.caduca=sumarMeses(hoy,meses);
+    var base=(c && c.caduca && c.caduca>hoy)?c.caduca:hoy;
+    datos.caduca=sumarMeses(base,meses);
     datos.ultimoPagoMeses=meses;
     datos.ultimoPagoFecha=hoy;
   }
@@ -738,7 +739,7 @@ function renovarSeleccionados(){
     var c=CLIENTS.find(function(x){return x._id===uid;});
     var ref=db.collection('clientes').doc(uid);
     if(fechaFija){ batch.update(ref, {caduca:fechaFija, activo:true}); }
-    else { batch.update(ref, {caduca:sumarMeses(hoy,meses), activo:true, ultimoPagoMeses:meses, ultimoPagoFecha:hoy}); }
+    else { var base=(c && c.caduca && c.caduca>hoy)?c.caduca:hoy; batch.update(ref, {caduca:sumarMeses(base,meses), activo:true, ultimoPagoMeses:meses, ultimoPagoFecha:hoy}); }
   });
   batch.commit().then(function(){ alert('Renovadas '+sel.length+' cuenta(s).'); loadClients(); })
     .catch(function(err){ alert('Error al renovar: '+err.message); });
